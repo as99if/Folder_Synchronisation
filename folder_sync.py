@@ -135,7 +135,7 @@ def sync(source_folder, replica_folder, interval):
                 count_update += 1
                 logging.info(f"{file} is copied")
 
-        logging.info(f"sync: {count_sync}; update: {count_update}; delete: {count_delete} ;")
+        logging.info(f"synced: {count_sync}; updated: {count_update}; deleted: {count_delete} ;")
         # time interval
         time.sleep(interval)
 
