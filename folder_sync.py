@@ -37,8 +37,12 @@ def compare_hash_folder(_folder, _replica) -> bool:
         return False
     for _file in _files:
         if _file in _files_replica:
-            if not compare_files(_folder + "/" + _file, _replica + "/" + _file):
-                return False
+            if os.path.isdir(_folder + "/" + _file):
+                if not compare_hash_folder(_folder + "/" + _file, _replica + "/" + _file):
+                    return False
+            else:
+                if not compare_files(_folder + "/" + _file, _replica + "/" + _file):
+                    return False
         else:
             return False
     return True
@@ -66,7 +70,7 @@ def sync(source_folder, replica_folder, interval):
         if os.path.isdir(source_folder):
             logging.info("source folder exists")
         else:
-            logging.info("folder is not exist")
+            logging.info("source folder does not exist")
             break
         # check backup
         if os.path.isdir(replica_folder):
@@ -78,8 +82,8 @@ def sync(source_folder, replica_folder, interval):
         # check if folder is same with backup
         if compare_hash_folder(source_folder, replica_folder):
             logging.info("file is up to date")
-            # sleep for 5 minutes
-            time.sleep(300)
+            # time interval
+            time.sleep(interval)
             continue
 
         # check file hash in folder and compare with backup
@@ -93,31 +97,49 @@ def sync(source_folder, replica_folder, interval):
         # compare two folders
         for file in files_replica:
             if file in files_source:
-                if compare_files(source_folder + "/" + file, replica_folder + '/' + file):
-                    logging.info(f"{file} is up to date")
-                    count_sync += 1
+                if os.path.isdir(replica_folder + '/' + file):
+                    if compare_hash_folder(source_folder + "/" + file, replica_folder + '/' + file):
+                        logging.info(f"{file} is up to date")
+                        count_sync += 1
+                    else:
+                        # count_update file in replica_folder from source_folder
+                        count_update += 1
+                        shutil.rmtree(replica_folder + "/" + file)
+                        shutil.copytree(source_folder + "/" + file, replica_folder + "/" + file)
+                        logging.info(f"{file} is updated")
                 else:
-                    # count_update file in replica_folder from source_folder
-                    count_update += 1
-                    os.remove(replica_folder + "/" + file)
-                    shutil.copy2(source_folder + "/" + file, replica_folder)
-                    logging.info(f"{file} is updated")
+                    if compare_files(source_folder + "/" + file, replica_folder + '/' + file):
+                        logging.info(f"{file} is up to date")
+                        count_sync += 1
+                    else:
+                        # count_update file in replica_folder from source_folder
+                        count_update += 1
+                        os.remove(replica_folder + "/" + file)
+                        shutil.copy2(source_folder + "/" + file, replica_folder)
+                        logging.info(f"{file} is updated")
 
-            if file not in files_source:
+            elif file not in files_source:
                 # count_delete file in backup
+                if os.path.isdir(replica_folder + "/" + file):
+                    shutil.rmtree(replica_folder + "/" + file)
+                else:
+                    os.remove(replica_folder + "/" + file)
                 logging.info(f"{file} is deleted")
                 count_delete += 1
-                os.remove(replica_folder + "/" + file)
 
         for file in files_source:
             if file not in files_replica:
                 # copy file from source_folder to replica_folder
+                if os.path.isdir(source_folder + "/" + file):
+                    shutil.copytree(source_folder + "/" + file, replica_folder + "/" + file)
+                else:
+                    shutil.copy2(source_folder + "/" + file, replica_folder)
+
                 count_update += 1
                 logging.info(f"{file} is copied")
-                shutil.copy2(source_folder + "/" + file, replica_folder)
 
         logging.info(f"sync: {count_sync}; update: {count_update}; delete: {count_delete} ;")
-        # sleep for 5 minutes
+        # time interval
         time.sleep(interval)
 
 
@@ -129,4 +151,4 @@ if __name__ == "__main__":
     logging.basicConfig(filename=_log_file_path, encoding='utf-8', level=logging.INFO,
                         datefmt='%d-%b-%y %H:%M:%S',
                         format='%(asctime)s - %(message)s')
-    sync(_source_folder, _replica_folder, _interval)
+    sync(_source_folder, _replica_folder, int(_interval))
